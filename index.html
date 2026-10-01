@@ -1070,94 +1070,176 @@ console.log('Rentabilidad V12 LIMPIA cargada - 3 botones');
 
 
 
-<!-- V21 FIX BLANCO: RELOAD SOLO UNA VEZ EN AJUSTES SIN ROMPER REACT -->
+
+
+
+<!-- V22 FIX PERSISTENCIA: RELOAD SOLO DENTRO DE AJUSTES -->
 <script>
 (function(){
-  const VERSION='V21';
-  let injected=false;
+  const VERSION='V22';
+  let injectedAjustes=false;
 
-  function injectOnce(){
-    if(injected) return;
-    if(document.getElementById('v21-reload-card')) { injected=true; return; }
-    
-    // Buscar modal de Ajustes por texto "Resetear datos" (es el que vimos en tu captura)
-    let resetBtn=null;
-    document.querySelectorAll('button, div').forEach(el=>{
-      if(el.textContent && el.textContent.trim()==='Resetear datos'){
-        resetBtn=el;
-      }
-    });
-    if(!resetBtn) return;
-    
-    // El panel contenedor es 2 niveles arriba
-    let panel = resetBtn.closest('div')?.parentElement;
-    // Buscar contenedor grande que es el modal de ajustes
-    let modal = resetBtn.closest('div[class*="bg-white"]')?.parentElement || resetBtn.parentElement?.parentElement?.parentElement;
-    if(!modal) modal = resetBtn.parentElement?.parentElement;
-    if(!modal) return;
-    
-    // Evitar duplicado
-    if(modal.querySelector('#v21-reload-card')) { injected=true; return; }
-
-    let card=document.createElement('div');
-    card.id='v21-reload-card';
-    card.style.cssText='margin:12px 16px 16px 16px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:16px; padding:16px; font-family:inherit;';
-    card.innerHTML=`
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-        <div style="font-weight:800; font-size:14px; color:#0f172a;">Recarga y caché</div>
-        <div style="font-size:10px; font-weight:800; background:#ede9fe; color:#5b21b6; padding:4px 8px; border-radius:9999px;">${VERSION}</div>
-      </div>
-      <div style="font-size:12px; color:#6b7280; line-height:1.3;">Si se queda en septiembre, fuerza recarga a mes actual (OCT 2026)</div>
-      <div style="display:flex; gap:8px; margin-top:12px;">
-        <button id="v21-reload-btn" style="flex:1; background:#0f172a; color:white; border-radius:12px; padding:12px; font-weight:700; font-size:13px; border:none; cursor:pointer;">🔄 Recargar app</button>
-        <button id="v21-hard-btn" style="flex:1; background:white; border:1px solid #e5e7eb; border-radius:12px; padding:12px; font-weight:700; font-size:13px; cursor:pointer;">🧹 Limpiar</button>
-      </div>
-    `;
-    // Insertar después del botón Resetear datos
-    resetBtn.parentElement?.parentElement?.appendChild(card);
-    // Si no, al final del modal
-    if(!card.parentElement){
-      modal.appendChild(card);
-    }
-    injected=true;
-    console.log('✓ V21 Recarga inyectada 1 vez');
-
-    setTimeout(()=>{
-      let b1=document.getElementById('v21-reload-btn');
-      let b2=document.getElementById('v21-hard-btn');
-      if(b1) b1.onclick=()=>{ let u=new URL(location.href); u.searchParams.set('v',VERSION); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
-      if(b2) b2.onclick=()=>{ try{sessionStorage.clear();}catch(e){}; let u=new URL(location.href); u.searchParams.set('v',VERSION); u.searchParams.set('hard','1'); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
-    }, 150);
+  function cleanAll(){
+    try{
+      // Borrar todas las cards de recarga que estén FUERA de Ajustes (en Inicio/dashboard)
+      document.querySelectorAll('div').forEach(div=>{
+        if(!div.innerHTML) return;
+        if(!div.innerHTML.includes('Recarga y caché')) return;
+        // Si este div NO está dentro de un modal que contenga "Ajustes Don Ramón", borrarlo
+        let isInsideAjustes = false;
+        let parent = div.parentElement;
+        let depth=0;
+        while(parent && depth<10){
+          if(parent.textContent && parent.textContent.includes('Ajustes Don Ramón')){
+            isInsideAjustes=true; break;
+          }
+          parent=parent.parentElement;
+          depth++;
+        }
+        // También comprobar si el propio div contiene "Ajustes Don Ramón" + "Recarga" (es el modal completo, no borrar)
+        // Solo borrar si es una card suelta en Inicio
+        if(!isInsideAjustes){
+          // Si está en Inicio (contiene "Situación global" cerca), borrar
+          let bodyText = document.body.textContent||'';
+          let cardText = div.textContent||'';
+          // Si la card está en dashboard (tiene OCT 2026 cerca pero no Ajustes Don Ramón)
+          if(cardText.includes('Recarga y caché') && !div.closest('[data-ajustes-card]')){
+            // Verificar si su contenedor NO es el de Ajustes
+            let ajustesContainer = document.querySelector('[data-ajustes-container]');
+            if(!ajustesContainer || !ajustesContainer.contains(div)){
+              // Es una card huérfana en Inicio, borrar
+              if(div.id && (div.id.includes('v21-reload') || div.id.includes('v20-reload') || div.id.includes('v19-reload'))){
+                div.remove();
+              } else if(div.innerHTML.includes('Recargar app') && div.innerHTML.includes('Limpiar') && div.children.length<=5){
+                // Card pequeña flotante en Inicio
+                if(!div.textContent.includes('Total habitaciones')){
+                  div.remove();
+                }
+              }
+            }
+          }
+        }
+      });
+      // Borrar por IDs antiguos
+      ['v19-reload-btn','v20-reload-btn','v21-reload-btn','v19-reload-card','v20-reload-card','v21-reload-card'].forEach(id=>{
+        let els=document.querySelectorAll('#'+id);
+        els.forEach((el,i)=>{
+          if(i>0) el.remove(); // dejar solo uno si es el de Ajustes
+          else {
+            // Si este único está fuera de Ajustes, borrarlo también
+            let isInAjustes = false;
+            let p=el.parentElement; let d=0;
+            while(p && d<8){ if(p.textContent && p.textContent.includes('Ajustes Don Ramón')){ isInAjustes=true; break; } p=p.parentElement; d++; }
+            if(!isInAjustes){
+              let card=el.closest('div');
+              if(card && card.innerHTML.includes('Recarga y caché')) card.remove();
+            }
+          }
+        });
+      });
+    }catch(e){ console.error('clean err',e); }
   }
 
-  // Observar cuando se abre el modal de Ajustes
-  const observer = new MutationObserver(()=>{
-    // Solo intentar si estamos en Ajustes (existe texto Resetear datos y no hemos inyectado)
-    if(!injected && document.body.textContent.includes('Resetear datos')){
-      injectOnce();
-    }
+  function injectInAjustes(){
+    try{
+      // Solo si estamos en la pantalla Ajustes
+      let ajustesTitle=null;
+      document.querySelectorAll('div').forEach(d=>{
+        if(d.textContent && d.textContent.trim()==='Ajustes Don Ramón'){
+          ajustesTitle=d;
+        }
+      });
+      if(!ajustesTitle) { return false; } // No estamos en Ajustes, no inyectar
+
+      // Buscar contenedor blanco de Ajustes Don Ramón
+      let ajustesCard = ajustesTitle.closest('div');
+      // Subir hasta encontrar el card que contiene "Total habitaciones" y "Resetear datos"
+      let depth=0;
+      while(ajustesCard && depth<6){
+        if(ajustesCard.textContent && ajustesCard.textContent.includes('Total habitaciones') && ajustesCard.textContent.includes('Resetear datos')){
+          break;
+        }
+        ajustesCard=ajustesCard.parentElement;
+        depth++;
+      }
+      if(!ajustesCard) return false;
+
+      // Marcar contenedor para limpieza
+      ajustesCard.setAttribute('data-ajustes-container','1');
+
+      // Si ya existe card de recarga dentro de este contenedor, no duplicar
+      if(ajustesCard.querySelector('#v22-reload-card')) return true;
+
+      // Buscar botón Resetear datos dentro de este card
+      let resetBtn=null;
+      ajustesCard.querySelectorAll('button, div').forEach(el=>{
+        if(el.textContent && el.textContent.trim()==='Resetear datos'){
+          resetBtn=el;
+        }
+      });
+      if(!resetBtn) return false;
+
+      // Crear card V22 dentro de ajustesCard, después del reset
+      let card=document.createElement('div');
+      card.id='v22-reload-card';
+      card.setAttribute('data-ajustes-card','1');
+      card.style.cssText='margin-top:16px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:16px; padding:16px;';
+      card.innerHTML=`
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-weight:800; font-size:14px; color:#0f172a;">Recarga y caché</div>
+          <div style="font-size:10px; font-weight:800; background:#ede9fe; color:#5b21b6; padding:4px 8px; border-radius:9999px;">V22</div>
+        </div>
+        <div style="font-size:12px; color:#6b7280; margin-top:4px;">Si se queda en septiembre, fuerza recarga a mes actual (OCT 2026)</div>
+        <div style="display:flex; gap:8px; margin-top:12px;">
+          <button id="v22-reload-btn" style="flex:1; background:#0f172a; color:white; border-radius:12px; padding:12px; font-weight:700; font-size:13px; border:none;">🔄 Recargar app</button>
+          <button id="v22-hard-btn" style="flex:1; background:white; border:1px solid #e5e7eb; border-radius:12px; padding:12px; font-weight:700; font-size:13px;">🧹 Limpiar</button>
+        </div>
+      `;
+      // Insertar después del contenedor del botón Resetear
+      let resetContainer = resetBtn.parentElement;
+      if(resetContainer && resetContainer.parentElement===ajustesCard){
+        resetContainer.insertAdjacentElement('afterend', card);
+      } else {
+        ajustesCard.appendChild(card);
+      }
+
+      setTimeout(()=>{
+        let b1=document.getElementById('v22-reload-btn');
+        let b2=document.getElementById('v22-hard-btn');
+        if(b1) b1.onclick=()=>{ let u=new URL(location.href); u.searchParams.set('v','V22'); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
+        if(b2) b2.onclick=()=>{ try{sessionStorage.clear();}catch(e){}; let u=new URL(location.href); u.searchParams.set('v','V22'); u.searchParams.set('hard','1'); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
+      }, 150);
+
+      console.log('✓ V22 inyectado solo dentro de Ajustes');
+      return true;
+    }catch(e){ console.error('inject ajustes err',e); return false; }
+  }
+
+  // Observer solo para Ajustes
+  const observer=new MutationObserver(()=>{
+    cleanAll();
+    injectInAjustes();
   });
   observer.observe(document.body, {childList:true, subtree:true});
 
-  // Intento inicial por si ya está abierto
-  setTimeout(()=>{
-    if(document.body.textContent.includes('Resetear datos')) injectOnce();
-  }, 1000);
+  // Limpieza inicial inmediata
+  setTimeout(()=>{ cleanAll(); injectInAjustes(); }, 500);
+  setTimeout(()=>{ cleanAll(); injectInAjustes(); }, 1500);
+  setTimeout(()=>{ cleanAll(); }, 3000);
 
-  // Header simplificado sin intervalo
+  // Header simplificado
   setTimeout(()=>{
     document.querySelectorAll('*').forEach(el=>{
       if(el.childNodes?.length===1 && el.childNodes[0].nodeType===3){
         let txt=(el.textContent||'').trim();
-        if(txt.includes('Todo interrelacionado') || (txt.includes('V1') && txt.includes('V2') && txt.includes('estética'))){
-          el.textContent='V21 · oct 26';
-          el.style.fontSize='11px'; el.style.color='#6b7280';
+        if(txt.includes('Todo interrelacionado') || (txt.includes('estética') && txt.includes('lógica'))){
+          el.textContent='V22 · oct 26'; el.style.fontSize='11px'; el.style.color='#6b7280';
         }
       }
     });
-  }, 1200);
+  }, 1000);
 
-  console.log('V21 observer activo, sin intervalos que rompan React');
+  console.log('V22 fix persistencia activo');
 })();
 </script>
 
