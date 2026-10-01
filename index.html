@@ -717,17 +717,94 @@ console.log('Rentabilidad V12 LIMPIA cargada - 3 botones');
     setTimeout(()=>{
       if(iaMode==='gasto'){
         let lower=file.name.toLowerCase();
-        let isComunidad = lower.includes('comunidad');
-        // Detectar mes desde nombre archivo (septiembre bug)
-        let mesDetectado = window.iaDetectarMesDesdeTexto(lower);
+        let originalName=file.name;
+        // Parser mejorado V16: extraer importe, categoria y fecha desde nombre
+        let importeDetectado = null;
+        let matchImporte = originalName.match(/(\d{1,4}[\.,]\d{2})/);
+        if(matchImporte){
+          let raw=matchImporte[1].replace(',','.');
+          let val=parseFloat(raw);
+          if(!isNaN(val) && val>0 && val<10000) importeDetectado=val;
+        }
+        // Categoria: detectar comunidad por palabras clave del recibo real
+        let catDetectada = 'Otros';
+        if(lower.includes('cuota') || lower.includes('comunidad') || lower.includes('dcha') || lower.includes('don ramon') || lower.includes('comu')){
+          catDetectada='Comunidad';
+        } else if(lower.includes('luz') || lower.includes('iberdrola') || lower.includes('endesa')){
+          catDetectada='Luz';
+        } else if(lower.includes('agua') || lower.includes('canal')){
+          catDetectada='Agua';
+        } else if(lower.includes('internet') || lower.includes('fibra') || lower.includes('movistar') || lower.includes('vodafone')){
+          catDetectada='Internet';
+        } else if(lower.includes('impuesto') || lower.includes('ibi') || lower.includes('basura')){
+          catDetectada='Impuestos';
+        }
+        let isComunidad = catDetectada==='Comunidad';
+
+        // Fecha: usar lastModified del archivo si existe (si recibo es de septiembre, su fecha de archivo será septiembre)
         let fechaDefault = new Date().toISOString().slice(0,10);
+        let mesDetectado = window.iaDetectarMesDesdeTexto(lower);
+        try{
+          if(file.lastModified){
+            let d=new Date(file.lastModified);
+            // Si lastModified es en septiembre y hoy es octubre, usar esa fecha
+            if(d && !isNaN(d.getTime())){
+              // Solo usar si no es hoy mismo (evitar fecha de hoy si archivo recién descargado hoy)
+              // Pero si el archivo se creó en septiembre, usar ese mes
+              let lmMes=d.getMonth()+1;
+              let lmYear=d.getFullYear();
+              // Si el archivo es de hace más de 1 día, usar su mes
+              let diffDays=(Date.now()-file.lastModified)/(1000*60*60*24);
+              if(diffDays>1){
+                fechaDefault = d.toISOString().slice(0,10);
+                mesDetectado = String(lmMes).padStart(2,'0');
+              }
+            }
+          }
+        }catch(e){}
+        // Si nombre contiene mes textual, sobreescribir
         if(mesDetectado){
-          // Si detecta septiembre y estamos en octubre, usar septiembre del año actual
           let year=new Date().getFullYear();
-          fechaDefault = year+'-'+mesDetectado+'-15';
+          // Si estamos en octubre y detecta septiembre, mantener septiembre
+          try{
+            let parts=fechaDefault.split('-');
+            if(parts.length===3) year=parts[0];
+          }catch(e){}
+          // Solo si fechaDefault es de hoy y mesDetectado es diferente, usar mesDetectado
+          if(!file.lastModified || (Date.now()-file.lastModified)/(1000*60*60*24) < 2){
+            fechaDefault = year+'-'+mesDetectado+'-15';
+          }
+        }
+        // Si no hay mes detectado pero importe detectado es de comunidad y hoy es octubre, asumir mes anterior (septiembre) como hace tu gestor
+        if(!mesDetectado && isComunidad){
+          let now=new Date();
+          if(now.getMonth()===9){ // octubre = 9 (0-index)
+            // Proponer septiembre por defecto para cuotas mensuales que se pagan a mes vencido
+            let prevMonth = new Date(now.getFullYear(), now.getMonth()-1, 15);
+            // Solo si no tenemos fecha de archivo antigua, proponer mes anterior
+            if((Date.now()-file.lastModified)/(1000*60*60*24) < 2){
+              fechaDefault = prevMonth.toISOString().slice(0,10);
+              mesDetectado = String(prevMonth.getMonth()+1).padStart(2,'0');
+            }
+          }
         }
 
-        let propuesta = { concepto: isComunidad ? 'Comunidad vecinos Octubre' : 'Recibo ' + file.name.replace(/\.[^/.]+$/, ''), importe: isComunidad ? 156.03 : 135.00, fecha: fechaDefault, categoria: isComunidad ? 'Comunidad' : 'Otros', mes: String(new Date().getMonth()+1).padStart(2,'0'), ano: '2026' };
+                // Propuesta V16 con parser real
+        let conceptoBase = originalName.replace(/\.[^/.]+$/, '').replace(/_/g,' ').trim();
+        // Si es cuota comunidad, concepto más limpio
+        let conceptoLimpio = catDetectada==='Comunidad' ? 'Cuota comunidad - ' + conceptoBase : 'Recibo ' + conceptoBase;
+        if(conceptoLimpio.length>60) conceptoLimpio=conceptoLimpio.substring(0,60);
+        let impFinal = importeDetectado!==null ? importeDetectado : (isComunidad ? 156.03 : 135.00);
+        let mesFinal = mesDetectado || fechaDefault.split('-')[1];
+        let anoFinal = fechaDefault.split('-')[0];
+        let propuesta = {
+          concepto: conceptoLimpio,
+          importe: impFinal,
+          fecha: fechaDefault,
+          categoria: catDetectada,
+          mes: mesFinal,
+          ano: anoFinal
+        };
         renderPropuestaGasto(propuesta, file);
       } else if(iaMode==='nueva'){
         let propuesta = { nombre: 'Nueva Inquilina (detectada)', dni: '12345678Z', email: 'nueva@email.com', telefono: '600 000 000', habitacion: 'Hab 3', renta: 800, fianza: 800, fechaInicio: '2026-10-01', fechaFin: '2027-09-30' };
