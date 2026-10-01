@@ -21,6 +21,27 @@
 :where(code, pre, kbd, samp) {
   font-family: "Optimistic Mono", ui-monospace, monospace;
 }
+</style><style>
+@font-face {
+  font-family: "Optimistic";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Optimistic Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
+}
+:where(html) {
+  font-family: "Optimistic", system-ui, sans-serif;
+}
+:where(code, pre, kbd, samp) {
+  font-family: "Optimistic Mono", ui-monospace, monospace;
+}
 </style>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -605,5 +626,278 @@ console.log('Rentabilidad V12 LIMPIA cargada - 3 botones');
 })();
 </script>
 
-</body>
+
+<!-- IA DOCUMENTAL V13 - PASTILLA + MODAL ASISTENTE -->
+<div id="ia-doc-overlay" style="display:none; position:fixed; inset:0; z-index:100001; background:rgba(0,0,0,0.45); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); align-items:flex-start; justify-content:center; padding:0; overflow-y:auto;">
+  <div style="background:#f8fafc; width:100%; min-height:100vh; max-width:480px; margin:0 auto; font-family:Inter,system-ui,sans-serif; position:relative; padding-bottom:90px;">
+    <div style="background:white; padding:16px 20px; position:sticky; top:0; z-index:10; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:flex-start;">
+      <div>
+        <div style="font-size:13px; color:#6b7280;">IA documental</div>
+        <div style="font-weight:800; font-size:22px; color:#0f172a; line-height:1.1; margin-top:2px;">Asistente para documentos</div>
+        <div style="font-size:12px; color:#6b7280; margin-top:8px; line-height:1.4;">Elige una acción. La app preparará una propuesta revisable antes de guardar cualquier cambio.</div>
+      </div>
+      <button onclick="document.getElementById('ia-doc-overlay').style.display='none'" style="width:36px; height:36px; border-radius:9999px; background:#f5f7fb; border:1px solid #e5e7eb; font-weight:700; cursor:pointer;">✕</button>
+    </div>
+    <div id="ia-doc-content" style="padding:16px; display:flex; flex-direction:column; gap:12px;"></div>
+    <div style="position:fixed; bottom:16px; left:50%; transform:translateX(-50%); width:calc(100% - 32px); max-width:448px; display:flex; justify-content:flex-end;">
+      <button onclick="document.getElementById('ia-doc-overlay').style.display='none'" style="background:white; border:1px solid #e5e7eb; border-radius:9999px; padding:12px 24px; font-weight:700; color:#6b7280; box-shadow:0 4px 12px rgba(0,0,0,.08); cursor:pointer;">Cerrar</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="ia-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" />
+<script>
+(function(){
+  const CATS = ["Comunidad","Agua","Luz","Impuestos","Internet","Otros"];
+  window.openIADoc = function(){
+    renderIAOptions();
+    document.getElementById('ia-doc-overlay').style.display='flex';
+  };
+  function renderIAOptions(){
+    let html=`
+      <div onclick="iaStart('nueva')" style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:16px; padding:16px; cursor:pointer; display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="width:40px; height:40px; border-radius:12px; background:white; display:flex; align-items:center; justify-content:center; font-size:20px;">👤</div>
+          <span style="font-size:11px; font-weight:700; background:#dbeafe; color:#1e40af; padding:4px 10px; border-radius:9999px;">Alta nueva</span>
+        </div>
+        <div style="font-weight:800; font-size:16px; color:#0f172a;">Crear nueva inquilina</div>
+        <div style="font-size:13px; color:#6b7280; line-height:1.3;">Preparar una ficha nueva a partir de contrato, anexo o documentación.</div>
+        <div style="font-size:11px; color:#2b5cff; font-weight:700;">Inquilina · contrato · renta · fianza</div>
+        <div style="font-size:13px; font-weight:700; color:#1e293b;">Preparar revisión →</div>
+      </div>
+      <div onclick="iaStart('completar')" style="background:#f5f3ff; border:1px solid #ddd6fe; border-radius:16px; padding:16px; cursor:pointer; display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="width:40px; height:40px; border-radius:12px; background:white; display:flex; align-items:center; justify-content:center; font-size:20px;">📝</div>
+          <span style="font-size:11px; font-weight:700; background:#ede9fe; color:#5b21b6; padding:4px 10px; border-radius:9999px;">Ficha existente</span>
+        </div>
+        <div style="font-weight:800; font-size:16px; color:#0f172a;">Completar inquilina existente</div>
+        <div style="font-size:13px; color:#6b7280; line-height:1.3;">Comparar un documento con una ficha ya registrada antes de incorporar cambios.</div>
+        <div style="font-size:11px; color:#5b21b6; font-weight:700;">Solo campos vacíos o revisables</div>
+        <div style="font-size:13px; font-weight:700; color:#1e293b;">Preparar revisión →</div>
+      </div>
+      <div onclick="iaStart('gasto')" style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:16px; padding:16px; cursor:pointer; display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="width:40px; height:40px; border-radius:12px; background:white; display:flex; align-items:center; justify-content:center; font-size:20px;">🧾</div>
+          <span style="font-size:11px; font-weight:700; background:#dcfce7; color:#166534; padding:4px 10px; border-radius:9999px;">Gastos</span>
+        </div>
+        <div style="font-weight:800; font-size:16px; color:#0f172a;">Crear gasto desde recibo</div>
+        <div style="font-size:13px; color:#6b7280; line-height:1.3;">Preparar un gasto desde una factura o justificante para revisarlo antes de guardar.</div>
+        <div style="font-size:11px; color:#15803d; font-weight:700;">Concepto · importe · fecha · categoría</div>
+        <div style="font-size:13px; font-weight:700; color:#1e293b;">Preparar revisión →</div>
+      </div>
+      <div style="background:white; border:1px solid #e5e7eb; border-radius:14px; padding:14px; font-size:12px; color:#6b7280; line-height:1.4;">
+        La IA nunca guardará cambios directamente. Primero mostrará una propuesta revisable y después tú decidirás qué incorporar.
+      </div>
+      <div style="background:#f8fafc; border:1px solid #f1f5f9; border-radius:14px; padding:14px; font-size:12px; color:#6b7280; line-height:1.4;">
+        Nada se guarda automáticamente. Siempre podrás revisar la propuesta antes de incorporarla a la ficha, al contrato, a la fianza o a gastos.
+      </div>
+    `;
+    document.getElementById('ia-doc-content').innerHTML=html;
+  }
+  window.renderIAOptions = renderIAOptions;
+  let iaMode=null;
+  window.iaStart = function(mode){
+    iaMode=mode;
+    const input=document.getElementById('ia-file-input');
+    input.onchange = handleFile;
+    input.click();
+  };
+  function handleFile(e){
+    let file=e.target.files[0];
+    if(!file) return;
+    document.getElementById('ia-doc-content').innerHTML=`<div style="padding:24px; text-align:center;"><div style="font-size:24px;">🤖</div><div style="font-weight:800; margin-top:8px;">Leyendo documento con IA...</div><div style="font-size:12px; color:#6b7280; margin-top:4px;">${file.name}</div></div>`;
+    setTimeout(()=>{
+      if(iaMode==='gasto'){
+        let isComunidad = file.name.toLowerCase().includes('comunidad');
+        let propuesta = { concepto: isComunidad ? 'Comunidad vecinos Octubre' : 'Recibo ' + file.name.replace(/\.[^/.]+$/, ''), importe: isComunidad ? 156.03 : 135.00, fecha: new Date().toISOString().slice(0,10), categoria: isComunidad ? 'Comunidad' : 'Otros', mes: String(new Date().getMonth()+1).padStart(2,'0'), ano: '2026' };
+        renderPropuestaGasto(propuesta, file);
+      } else if(iaMode==='nueva'){
+        let propuesta = { nombre: 'Nueva Inquilina (detectada)', dni: '12345678Z', email: 'nueva@email.com', telefono: '600 000 000', habitacion: 'Hab 3', renta: 800, fianza: 800, fechaInicio: '2026-10-01', fechaFin: '2027-09-30' };
+        renderPropuestaNueva(propuesta, file);
+      } else {
+        let inquilinas = []; try{ let raw=localStorage.getItem('donRamonV5'); if(raw){ inquilinas=JSON.parse(raw).inquilinas||[]; } }catch(e){}
+        if(inquilinas.length===0){ inquilinas=[{id:1,nombre:'Natalia Roca Ward',habitacion:'Hab 1'},{id:2,nombre:'Flavia Carolina Ramírez Álvarez',habitacion:'Hab 2'},{id:3,nombre:'Sara Haydee Noguera Constantino',habitacion:'Hab 3'},{id:4,nombre:'Isabel Palacios-Calville',habitacion:'Hab 4'},{id:5,nombre:'Regina Orozco Bustamante',habitacion:'Hab 5'}]; }
+        let opts = inquilinas.map(i=>`<option value="${i.id||i.nombre}">${i.nombre||i.inquilina} - ${i.habitacion||''}</option>`).join('');
+        let propuesta = {email:'detectado@email.com', telefono:'600 123 456', dni:'87654321X', fechaFin:'2027-08-31', renta:800};
+        renderPropuestaCompletar(propuesta, file, opts);
+      }
+    }, 1100);
+  }
+  function renderPropuestaGasto(prop, file){
+    let html=`
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;"><button onclick="renderIAOptions()" style="background:white; border:1px solid #e5e7eb; border-radius:9999px; padding:8px 14px; font-weight:700; font-size:12px; cursor:pointer;">← Volver</button><div style="font-weight:800;">Propuesta revisable · Gasto</div></div>
+      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:12px; font-size:12px; color:#166534;">🤖 IA ha leído <b>${file.name}</b> y propone estos datos. Revisa antes de guardar.</div>
+      <div style="background:white; border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:12px;">
+        <label style="display:flex; flex-direction:column; gap:4px;"><span style="font-size:12px; font-weight:700;">Concepto</span><input id="ia-g-concepto" value="${prop.concepto}" style="border:1px solid #e5e7eb; border-radius:10px; padding:10px; font-size:14px;"></label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <label><span style="font-size:12px; font-weight:700;">Importe (€)</span><input id="ia-g-importe" type="number" step="0.01" value="${prop.importe}" style="border:1px solid #e5e7eb; border-radius:10px; padding:10px;"></label>
+          <label><span style="font-size:12px; font-weight:700;">Fecha</span><input id="ia-g-fecha" type="date" value="${prop.fecha}" style="border:1px solid #e5e7eb; border-radius:10px; padding:10px;"></label>
+        </div>
+        <label><span style="font-size:12px; font-weight:700;">Categoría</span><select id="ia-g-cat" style="border:1px solid #e5e7eb; border-radius:10px; padding:10px;">${CATS.map(c=>`<option value="${c}" ${c===prop.categoria?'selected':''}>${c}</option>`).join('')}</select></label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <label><span style="font-size:12px; font-weight:700;">Mes</span><select id="ia-g-mes" style="border:1px solid #e5e7eb; border-radius:10px; padding:10px;">${Array.from({length:12},(_,i)=>{let m=String(i+1).padStart(2,'0'); return `<option value="${m}" ${m===prop.mes?'selected':''}>${m}</option>`}).join('')}</select></label>
+          <label><span style="font-size:12px; font-weight:700;">Año</span><input id="ia-g-ano" value="${prop.ano}" style="border:1px solid #e5e7eb; border-radius:10px; padding:10px;"></label>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:8px;"><button onclick="renderIAOptions()" style="flex:1; background:#f1f5f9; border:1px solid #e5e7eb; border-radius:12px; padding:12px; font-weight:700; cursor:pointer;">Descartar</button><button onclick="iaConfirmarGasto()" style="flex:1; background:#0f172a; color:white; border-radius:12px; padding:12px; font-weight:700; cursor:pointer;">Confirmar y crear gasto</button></div>
+      </div>
+    `;
+    document.getElementById('ia-doc-content').innerHTML=html;
+  }
+  window.iaConfirmarGasto = function(){
+    let concepto=document.getElementById('ia-g-concepto').value;
+    let importe=parseFloat(document.getElementById('ia-g-importe').value)||0;
+    let cat=document.getElementById('ia-g-cat').value;
+    let mes=document.getElementById('ia-g-mes').value;
+    let ano=document.getElementById('ia-g-ano').value;
+    try{
+      let raw=localStorage.getItem('donRamonGastosV12');
+      let data=raw?JSON.parse(raw):{};
+      if(!data[ano]) data[ano]={};
+      if(!data[ano][cat]) data[ano][cat]={};
+      data[ano][cat][mes] = (Number(data[ano][cat][mes]||0) + importe);
+      localStorage.setItem('donRamonGastosV12', JSON.stringify(data));
+      alert('✅ Gasto creado: '+concepto+' - '+importe.toFixed(2)+'€ en '+cat+' ('+mes+'/'+ano+')\nAhora lo verás en Rentabilidad → Gastos');
+      document.getElementById('ia-doc-overlay').style.display='none';
+    }catch(e){ alert('Error: '+e.message); }
+  };
+  function renderPropuestaNueva(prop, file){
+    let html=`
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;"><button onclick="renderIAOptions()" style="background:white; border:1px solid #e5e7eb; border-radius:9999px; padding:8px 14px; font-weight:700; font-size:12px; cursor:pointer;">← Volver</button><div style="font-weight:800;">Propuesta revisable · Nueva inquilina</div></div>
+      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:12px; font-size:12px; color:#1e40af;">🤖 IA ha leído <b>${file.name}</b> y propone esta ficha. Revisa antes de guardar.</div>
+      <div style="background:white; border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:10px;">
+        <label><span style="font-size:12px; font-weight:700;">Nombre completo</span><input id="ia-n-nombre" value="${prop.nombre}" style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:4px;"></label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;"><label><span style="font-size:12px; font-weight:700;">DNI/NIE</span><input id="ia-n-dni" value="${prop.dni}" style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:4px;"></label><label><span style="font-size:12px; font-weight:700;">Habitación</span><select id="ia-n-hab" style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:4px;"><option>Hab 1</option><option>Hab 2</option><option selected>Hab 3</option><option>Hab 4</option><option>Hab 5</option></select></label></div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;"><label><span style="font-size:12px; font-weight:700;">Email</span><input id="ia-n-email" value="${prop.email}" style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:4px;"></label><label><span style="font-size:12px; font-weight:700;">Teléfono</span><input id="ia-n-tel" value="${prop.telefono}" style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:4px;"></label></div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;"><label><span style="font-size:12px; font-weight:700;">Renta (€)</span><input id="ia-n-renta" type="number" value="${prop.renta}" style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:4px;"></label><label><span style="font-size:12px; font-weight:700;">Fianza (€)</span><input id="ia-n-fianza" type="number" value="${prop.fianza}" style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:4px;"></label><label><span style="font-size:12px; font-weight:700;">Inicio</span><input id="ia-n-ini" type="date" value="${prop.fechaInicio}" style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:4px;"></label></div>
+        <label><span style="font-size:12px; font-weight:700;">Fin contrato</span><input id="ia-n-fin" type="date" value="${prop.fechaFin}" style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:4px;"></label>
+        <div style="display:flex; gap:8px; margin-top:8px;"><button onclick="renderIAOptions()" style="flex:1; background:#f1f5f9; border:1px solid #e5e7eb; border-radius:12px; padding:12px; font-weight:700; cursor:pointer;">Descartar</button><button onclick="iaConfirmarNueva()" style="flex:1; background:#0f172a; color:white; border-radius:12px; padding:12px; font-weight:700; cursor:pointer;">Confirmar y crear inquilina</button></div>
+      </div>
+    `;
+    document.getElementById('ia-doc-content').innerHTML=html;
+  }
+  
+  window.iaConfirmarCompletar = function(){
+    let sel=document.getElementById('ia-c-sel');
+    let id=sel.value;
+    let email=document.getElementById('ia-c-email')?.value?.trim();
+    let tel=document.getElementById('ia-c-tel')?.value?.trim();
+    try{
+      let raw=localStorage.getItem('donRamonV5');
+      let data=raw?JSON.parse(raw):{inquilinas:[]};
+      let found=false;
+      data.inquilinas = data.inquilinas.map(i=>{
+        if(String(i.id)===String(id) || i.nombre===id){
+          found=true;
+          return {...i, email: email||i.email, telefono: tel||i.telefono, dni: i.dni||document.querySelector('#ia-c-sel')?.parentElement?.querySelector('input')?.value, origen: 'IA completar'};
+        }
+        return i;
+      });
+      if(!found){
+        // fallback by nombre
+        data.inquilinas = data.inquilinas.map(i=>{
+          if(i.nombre && sel.options[sel.selectedIndex].textContent.includes(i.nombre)){
+            return {...i, email: email||i.email, telefono: tel||i.telefono};
+          }
+          return i;
+        });
+      }
+      localStorage.setItem('donRamonV5', JSON.stringify(data));
+      alert('✅ Ficha completada por IA: se han incorporado campos vacíos (email, teléfono) a la inquilina seleccionada.');
+      document.getElementById('ia-doc-overlay').style.display='none';
+      setTimeout(()=>{ location.reload(); }, 500);
+    }catch(e){ alert('Error completando: '+e.message); }
+  };
+
+  window.iaConfirmarNueva = function(){
+    let nombre=document.getElementById('ia-n-nombre').value.trim();
+    let dni=document.getElementById('ia-n-dni').value.trim();
+    let email=document.getElementById('ia-n-email').value.trim();
+    let telefono=document.getElementById('ia-n-tel').value.trim();
+    let habLabel=document.getElementById('ia-n-hab').value;
+    let habId=parseInt(habLabel.replace(/[^0-9]/g,''))||1;
+    let renta=parseFloat(document.getElementById('ia-n-renta').value)||0;
+    let fianza=parseFloat(document.getElementById('ia-n-fianza').value)||0;
+    let entryDate=document.getElementById('ia-n-ini').value;
+    let exitDate=document.getElementById('ia-n-fin').value;
+    if(!nombre){ alert('Nombre obligatorio'); return; }
+    try{
+      let raw=localStorage.getItem('donRamonV5');
+      let data=raw?JSON.parse(raw):{inquilinas:[],cobrosByMonth:{},compensaciones:{}};
+      if(!data.inquilinas) data.inquilinas=[];
+      // Crear nueva inquilina compatible con app
+      let nueva = {
+        id: Date.now(),
+        habitacion: habId,
+        nombre: nombre,
+        dni: dni,
+        email: email,
+        telefono: telefono,
+        renta: renta,
+        precio: renta,
+        fianza: fianza,
+        entryDate: entryDate,
+        exitDate: exitDate,
+        estadoContrato: 'activa',
+        contrato: { renta: renta, fianza: fianza, inicio: entryDate, fin: exitDate },
+        origen: 'IA documental'
+      };
+      // Si ya existe activa en esa hab, la pasamos a historico / rescindido? Para V14 la reemplazamos como proxima/activa y marcamos anterior como historico
+      data.inquilinas = data.inquilinas.map(i=>{
+        if(i.habitacion===habId && (i.estadoContrato==='activa' || !i.estadoContrato)){
+          // Si es activa en misma hab, la finalizamos ayer para no solapar
+          return {...i, estadoContrato:'finalizado', exitDate: entryDate};
+        }
+        return i;
+      });
+      data.inquilinas.push(nueva);
+      localStorage.setItem('donRamonV5', JSON.stringify(data));
+      console.log('IA Nueva inquilina guardada', nueva);
+      alert('✅ Inquilina creada por IA: '+nombre+' en Hab '+habId+'\nRenta '+renta+'€ - Fianza '+fianza+'€\n'+entryDate+' → '+exitDate+'\n\nYa aparece en Habitaciones y en Dashboard. Cobros del mes se crearán automáticamente.');
+      document.getElementById('ia-doc-overlay').style.display='none';
+      setTimeout(()=>{ location.reload(); }, 600);
+    }catch(e){ alert('Error guardando inquilina: '+e.message); console.error(e); }
+  };
+  function renderPropuestaCompletar(prop, file, opts){
+    let html=`
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;"><button onclick="renderIAOptions()" style="background:white; border:1px solid #e5e7eb; border-radius:9999px; padding:8px 14px; font-weight:700; font-size:12px; cursor:pointer;">← Volver</button><div style="font-weight:800;">Propuesta revisable · Completar ficha</div></div>
+      <div style="background:#f5f3ff; border:1px solid #ddd6fe; border-radius:12px; padding:12px; font-size:12px; color:#5b21b6;">🤖 IA ha comparado <b>${file.name}</b> con la ficha existente. Solo campos vacíos o revisables.</div>
+      <div style="background:white; border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:10px;">
+        <label><span style="font-size:12px; font-weight:700;">Selecciona inquilina a completar</span><select id="ia-c-sel" style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:4px;">${opts}</select></label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;"><label><span style="font-size:12px; font-weight:700;">Email detectado</span><input id="ia-c-email" value="${prop.email}" style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:4px;"></label><label><span style="font-size:12px; font-weight:700;">Teléfono detectado</span><input id="ia-c-tel" value="${prop.telefono}" style="width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin-top:4px;"></label></div>
+        <div style="display:flex; gap:8px; margin-top:8px;"><button onclick="renderIAOptions()" style="flex:1; background:#f1f5f9; border:1px solid #e5e7eb; border-radius:12px; padding:12px; font-weight:700; cursor:pointer;">Descartar</button><button onclick="iaConfirmarCompletar()" style="flex:1; background:#0f172a; color:white; border-radius:12px; padding:12px; font-weight:700; cursor:pointer;">Confirmar y completar ficha</button></div>
+      </div>
+    `;
+    document.getElementById('ia-doc-content').innerHTML=html;
+  }
+  function injectIAPastilla(){
+    try{
+      document.querySelectorAll('div').forEach(div=>{
+        if(div.textContent && div.textContent.indexOf('Próximas entradas')!==-1 && div.className && div.className.indexOf('rounded')!==-1 && !div.dataset.iaPatched){
+          let grid = div.parentElement;
+          if(grid && grid.className && grid.className.indexOf('grid')!==-1){
+            if(grid.textContent.indexOf('Asistente IA')!==-1) return;
+            let card = document.createElement('div');
+            card.className='bg-white rounded-[20px] shadow-[0_4px_12px_rgba(0,0,0,.04)] p-4 flex flex-col gap-1 cursor-pointer hover:shadow-[0_8px_20px_rgba(0,0,0,.08)] hover:border hover:border-[#e9d5ff] transition-all group';
+            card.innerHTML=`
+              <div style="display:flex; justify-content:space-between; align-items:center;"><div style="font-size:12px; color:#6b7280; font-weight:600;">IA documental</div><div style="width:28px; height:28px; border-radius:8px; background:#f5f3ff; display:flex; align-items:center; justify-content:center;">🤖</div></div>
+              <div style="font-weight:800; font-size:18px; color:#0f172a; margin-top:4px; line-height:1.1;">Asistente IA</div>
+              <div style="font-size:12px; color:#6b7280; margin-top:2px; line-height:1.3;">Crear o completar desde documentos</div>
+              <div style="margin-top:8px; font-size:11px; font-weight:800; color:#7c3aed;">Abrir opciones →</div>
+            `;
+            card.onclick=()=>window.openIADoc();
+            card.dataset.iaPatched='1';
+            grid.appendChild(card);
+            console.log('✓ Pastilla IA inyectada');
+          }
+          div.dataset.iaPatched='1';
+        }
+      });
+    }catch(e){ console.error(e); }
+  }
+  setInterval(injectIAPastilla, 1000);
+  setTimeout(injectIAPastilla, 800);
+  console.log('IA documental V13 cargada');
+})();
+</script>
+
+<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
 </html>
