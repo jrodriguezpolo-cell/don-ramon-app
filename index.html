@@ -1060,5 +1060,147 @@ console.log('Rentabilidad V12 LIMPIA cargada - 3 botones');
 })();
 </script>
 
+
+
+
+
+
+
+
+<!-- V20 FIX: RELOAD SOLO UNA VEZ + LIMPIEZA DUPLICADOS -->
+<script>
+(function(){
+  const VERSION = 'V20';
+
+  function dedupAndClean(){
+    try{
+      // Si hay más de 1 sección "Recarga y caché", dejar solo la primera
+      let sections = [];
+      document.querySelectorAll('*').forEach(el=>{
+        if(el.textContent && el.textContent.includes('Recarga y caché') && el.textContent.includes('Si se queda en septiembre')){
+          // Solo considerar el contenedor que tiene los botones
+          if(el.querySelector && el.querySelector('#v19-reload-btn, #v20-reload-btn, #v19-hard-reload-btn, #v20-hard-reload-btn')){
+            sections.push(el);
+          } else if(el.children && el.children.length>=2 && el.textContent.length<500){
+            // Es el card contenedor
+            if(el.innerHTML.includes('Recarga y caché')){
+              sections.push(el);
+            }
+          }
+        }
+      });
+      // Método más simple: buscar todos los cards con ese título
+      let cards = Array.from(document.querySelectorAll('div')).filter(d=> d.innerHTML && d.innerHTML.includes('Recarga y caché') && d.innerHTML.includes('Recargar app') && d.innerHTML.includes('Limpiar caché'));
+      // Eliminar duplicados dejando solo 1
+      if(cards.length>1){
+        console.log('V20 detectados duplicados:', cards.length, 'limpiando...');
+        for(let i=1;i<cards.length;i++){
+          cards[i].remove();
+        }
+      }
+      // También limpiar botones huérfanos con mismo ID
+      let btns = document.querySelectorAll('#v19-reload-btn, #v20-reload-btn');
+      if(btns.length>1){
+        for(let i=1;i<btns.length;i++){
+          let card=btns[i].closest('div');
+          if(card && card.innerHTML.includes('Recarga y caché')) card.remove();
+        }
+      }
+    }catch(e){ console.error('dedup err',e); }
+  }
+
+  function simplifyHeaderVersion(){
+    try{
+      document.querySelectorAll('*').forEach(el=>{
+        if(el.childNodes && el.childNodes.length===1 && el.childNodes[0].nodeType===3){
+          let txt=(el.textContent||'').trim();
+          if(txt.includes('Todo interrelacionado') || (txt.includes('V1') && txt.includes('V2') && txt.includes('estética'))){
+            el.textContent = 'V20 · oct 26';
+            el.style.fontSize='11px'; el.style.color='#6b7280'; el.style.fontWeight='600';
+          }
+        }
+      });
+    }catch(e){}
+  }
+
+  function injectReloadInAjustes(){
+    try{
+      // Si ya existe una sección válida, no volver a inyectar
+      if(document.getElementById('v20-reload-btn')) return;
+      // Si existe v19 y es única, renombrarla a v20 y no duplicar
+      let existingV19 = document.getElementById('v19-reload-btn');
+      if(existingV19){
+        // Ya hay una, convertirla a v20 y salir
+        existingV19.id='v20-reload-btn';
+        let hard=document.getElementById('v19-hard-reload-btn');
+        if(hard) hard.id='v20-hard-reload-btn';
+        // Actualizar badge a V20
+        document.querySelectorAll('*').forEach(el=>{
+          if(el.textContent==='V19' && el.tagName!=='SCRIPT'){
+            let parent=el.closest('div');
+            if(parent && parent.innerHTML.includes('Recarga y caché')){
+              el.textContent='V20';
+            }
+          }
+        });
+        return;
+      }
+
+      // Buscar panel de Ajustes que contiene "Total habitaciones"
+      let ajustesPanel=null;
+      document.querySelectorAll('div').forEach(div=>{
+        if(div.textContent && div.textContent.includes('Total habitaciones') && div.textContent.includes('5') && div.children.length>3){
+          // Este suele ser el modal
+          if(!ajustesPanel) ajustesPanel=div.parentElement;
+        }
+      });
+      // Fallback: buscar por texto Resetear datos
+      if(!ajustesPanel){
+        document.querySelectorAll('div').forEach(div=>{
+          if(div.textContent && div.textContent.trim()==='Resetear datos'){
+            ajustesPanel=div.parentElement?.parentElement;
+          }
+        });
+      }
+      if(!ajustesPanel) return;
+      if(ajustesPanel.querySelector('#v20-reload-btn')) return; // ya existe
+
+      let section=document.createElement('div');
+      section.style.cssText='margin:16px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:16px; padding:16px;';
+      section.innerHTML=`
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-weight:800; font-size:14px; color:#0f172a;">Recarga y caché</div>
+          <div style="font-size:10px; font-weight:700; background:#ede9fe; color:#5b21b6; padding:4px 8px; border-radius:9999px;">V20</div>
+        </div>
+        <div style="font-size:12px; color:#6b7280; margin-top:4px;">Si se queda en septiembre, fuerza recarga a mes actual</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;">
+          <button id="v20-reload-btn" style="background:#0f172a; color:white; border-radius:12px; padding:12px; font-weight:700; font-size:13px; border:none; cursor:pointer;">🔄 Recargar app</button>
+          <button id="v20-hard-reload-btn" style="background:white; border:1px solid #e5e7eb; border-radius:12px; padding:12px; font-weight:700; font-size:13px; cursor:pointer;">🧹 Limpiar caché</button>
+        </div>
+        <div style="font-size:11px; color:#6b7280; margin-top:8px;">Recargar: OCT 2026. Limpiar: borra session y recarga con ?v=V20</div>
+      `;
+      ajustesPanel.appendChild(section);
+      console.log('✓ V20 Recarga inyectada una sola vez en Ajustes');
+
+      setTimeout(()=>{
+        let b1=document.getElementById('v20-reload-btn');
+        let b2=document.getElementById('v20-hard-reload-btn');
+        if(b1) b1.onclick=()=>{ let u=new URL(location.href); u.searchParams.set('v','V20'); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
+        if(b2) b2.onclick=()=>{ sessionStorage.clear(); let u=new URL(location.href); u.searchParams.set('v','V20'); u.searchParams.set('hard','1'); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
+      }, 200);
+    }catch(e){ console.error('inject v20 err',e); }
+  }
+
+  // Ejecutar una vez y luego cada 2s pero con protección anti-duplicado
+  function run(){
+    simplifyHeaderVersion();
+    dedupAndClean();
+    injectReloadInAjustes();
+  }
+  setTimeout(run, 800);
+  setInterval(run, 2500);
+})();
+</script>
+
 <script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
 </html>
