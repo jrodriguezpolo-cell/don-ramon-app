@@ -1067,138 +1067,97 @@ console.log('Rentabilidad V12 LIMPIA cargada - 3 botones');
 
 
 
-<!-- V20 FIX: RELOAD SOLO UNA VEZ + LIMPIEZA DUPLICADOS -->
+
+
+
+<!-- V21 FIX BLANCO: RELOAD SOLO UNA VEZ EN AJUSTES SIN ROMPER REACT -->
 <script>
 (function(){
-  const VERSION = 'V20';
+  const VERSION='V21';
+  let injected=false;
 
-  function dedupAndClean(){
-    try{
-      // Si hay más de 1 sección "Recarga y caché", dejar solo la primera
-      let sections = [];
-      document.querySelectorAll('*').forEach(el=>{
-        if(el.textContent && el.textContent.includes('Recarga y caché') && el.textContent.includes('Si se queda en septiembre')){
-          // Solo considerar el contenedor que tiene los botones
-          if(el.querySelector && el.querySelector('#v19-reload-btn, #v20-reload-btn, #v19-hard-reload-btn, #v20-hard-reload-btn')){
-            sections.push(el);
-          } else if(el.children && el.children.length>=2 && el.textContent.length<500){
-            // Es el card contenedor
-            if(el.innerHTML.includes('Recarga y caché')){
-              sections.push(el);
-            }
-          }
-        }
-      });
-      // Método más simple: buscar todos los cards con ese título
-      let cards = Array.from(document.querySelectorAll('div')).filter(d=> d.innerHTML && d.innerHTML.includes('Recarga y caché') && d.innerHTML.includes('Recargar app') && d.innerHTML.includes('Limpiar caché'));
-      // Eliminar duplicados dejando solo 1
-      if(cards.length>1){
-        console.log('V20 detectados duplicados:', cards.length, 'limpiando...');
-        for(let i=1;i<cards.length;i++){
-          cards[i].remove();
-        }
+  function injectOnce(){
+    if(injected) return;
+    if(document.getElementById('v21-reload-card')) { injected=true; return; }
+    
+    // Buscar modal de Ajustes por texto "Resetear datos" (es el que vimos en tu captura)
+    let resetBtn=null;
+    document.querySelectorAll('button, div').forEach(el=>{
+      if(el.textContent && el.textContent.trim()==='Resetear datos'){
+        resetBtn=el;
       }
-      // También limpiar botones huérfanos con mismo ID
-      let btns = document.querySelectorAll('#v19-reload-btn, #v20-reload-btn');
-      if(btns.length>1){
-        for(let i=1;i<btns.length;i++){
-          let card=btns[i].closest('div');
-          if(card && card.innerHTML.includes('Recarga y caché')) card.remove();
-        }
-      }
-    }catch(e){ console.error('dedup err',e); }
+    });
+    if(!resetBtn) return;
+    
+    // El panel contenedor es 2 niveles arriba
+    let panel = resetBtn.closest('div')?.parentElement;
+    // Buscar contenedor grande que es el modal de ajustes
+    let modal = resetBtn.closest('div[class*="bg-white"]')?.parentElement || resetBtn.parentElement?.parentElement?.parentElement;
+    if(!modal) modal = resetBtn.parentElement?.parentElement;
+    if(!modal) return;
+    
+    // Evitar duplicado
+    if(modal.querySelector('#v21-reload-card')) { injected=true; return; }
+
+    let card=document.createElement('div');
+    card.id='v21-reload-card';
+    card.style.cssText='margin:12px 16px 16px 16px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:16px; padding:16px; font-family:inherit;';
+    card.innerHTML=`
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <div style="font-weight:800; font-size:14px; color:#0f172a;">Recarga y caché</div>
+        <div style="font-size:10px; font-weight:800; background:#ede9fe; color:#5b21b6; padding:4px 8px; border-radius:9999px;">${VERSION}</div>
+      </div>
+      <div style="font-size:12px; color:#6b7280; line-height:1.3;">Si se queda en septiembre, fuerza recarga a mes actual (OCT 2026)</div>
+      <div style="display:flex; gap:8px; margin-top:12px;">
+        <button id="v21-reload-btn" style="flex:1; background:#0f172a; color:white; border-radius:12px; padding:12px; font-weight:700; font-size:13px; border:none; cursor:pointer;">🔄 Recargar app</button>
+        <button id="v21-hard-btn" style="flex:1; background:white; border:1px solid #e5e7eb; border-radius:12px; padding:12px; font-weight:700; font-size:13px; cursor:pointer;">🧹 Limpiar</button>
+      </div>
+    `;
+    // Insertar después del botón Resetear datos
+    resetBtn.parentElement?.parentElement?.appendChild(card);
+    // Si no, al final del modal
+    if(!card.parentElement){
+      modal.appendChild(card);
+    }
+    injected=true;
+    console.log('✓ V21 Recarga inyectada 1 vez');
+
+    setTimeout(()=>{
+      let b1=document.getElementById('v21-reload-btn');
+      let b2=document.getElementById('v21-hard-btn');
+      if(b1) b1.onclick=()=>{ let u=new URL(location.href); u.searchParams.set('v',VERSION); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
+      if(b2) b2.onclick=()=>{ try{sessionStorage.clear();}catch(e){}; let u=new URL(location.href); u.searchParams.set('v',VERSION); u.searchParams.set('hard','1'); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
+    }, 150);
   }
 
-  function simplifyHeaderVersion(){
-    try{
-      document.querySelectorAll('*').forEach(el=>{
-        if(el.childNodes && el.childNodes.length===1 && el.childNodes[0].nodeType===3){
-          let txt=(el.textContent||'').trim();
-          if(txt.includes('Todo interrelacionado') || (txt.includes('V1') && txt.includes('V2') && txt.includes('estética'))){
-            el.textContent = 'V20 · oct 26';
-            el.style.fontSize='11px'; el.style.color='#6b7280'; el.style.fontWeight='600';
-          }
+  // Observar cuando se abre el modal de Ajustes
+  const observer = new MutationObserver(()=>{
+    // Solo intentar si estamos en Ajustes (existe texto Resetear datos y no hemos inyectado)
+    if(!injected && document.body.textContent.includes('Resetear datos')){
+      injectOnce();
+    }
+  });
+  observer.observe(document.body, {childList:true, subtree:true});
+
+  // Intento inicial por si ya está abierto
+  setTimeout(()=>{
+    if(document.body.textContent.includes('Resetear datos')) injectOnce();
+  }, 1000);
+
+  // Header simplificado sin intervalo
+  setTimeout(()=>{
+    document.querySelectorAll('*').forEach(el=>{
+      if(el.childNodes?.length===1 && el.childNodes[0].nodeType===3){
+        let txt=(el.textContent||'').trim();
+        if(txt.includes('Todo interrelacionado') || (txt.includes('V1') && txt.includes('V2') && txt.includes('estética'))){
+          el.textContent='V21 · oct 26';
+          el.style.fontSize='11px'; el.style.color='#6b7280';
         }
-      });
-    }catch(e){}
-  }
-
-  function injectReloadInAjustes(){
-    try{
-      // Si ya existe una sección válida, no volver a inyectar
-      if(document.getElementById('v20-reload-btn')) return;
-      // Si existe v19 y es única, renombrarla a v20 y no duplicar
-      let existingV19 = document.getElementById('v19-reload-btn');
-      if(existingV19){
-        // Ya hay una, convertirla a v20 y salir
-        existingV19.id='v20-reload-btn';
-        let hard=document.getElementById('v19-hard-reload-btn');
-        if(hard) hard.id='v20-hard-reload-btn';
-        // Actualizar badge a V20
-        document.querySelectorAll('*').forEach(el=>{
-          if(el.textContent==='V19' && el.tagName!=='SCRIPT'){
-            let parent=el.closest('div');
-            if(parent && parent.innerHTML.includes('Recarga y caché')){
-              el.textContent='V20';
-            }
-          }
-        });
-        return;
       }
+    });
+  }, 1200);
 
-      // Buscar panel de Ajustes que contiene "Total habitaciones"
-      let ajustesPanel=null;
-      document.querySelectorAll('div').forEach(div=>{
-        if(div.textContent && div.textContent.includes('Total habitaciones') && div.textContent.includes('5') && div.children.length>3){
-          // Este suele ser el modal
-          if(!ajustesPanel) ajustesPanel=div.parentElement;
-        }
-      });
-      // Fallback: buscar por texto Resetear datos
-      if(!ajustesPanel){
-        document.querySelectorAll('div').forEach(div=>{
-          if(div.textContent && div.textContent.trim()==='Resetear datos'){
-            ajustesPanel=div.parentElement?.parentElement;
-          }
-        });
-      }
-      if(!ajustesPanel) return;
-      if(ajustesPanel.querySelector('#v20-reload-btn')) return; // ya existe
-
-      let section=document.createElement('div');
-      section.style.cssText='margin:16px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:16px; padding:16px;';
-      section.innerHTML=`
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div style="font-weight:800; font-size:14px; color:#0f172a;">Recarga y caché</div>
-          <div style="font-size:10px; font-weight:700; background:#ede9fe; color:#5b21b6; padding:4px 8px; border-radius:9999px;">V20</div>
-        </div>
-        <div style="font-size:12px; color:#6b7280; margin-top:4px;">Si se queda en septiembre, fuerza recarga a mes actual</div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;">
-          <button id="v20-reload-btn" style="background:#0f172a; color:white; border-radius:12px; padding:12px; font-weight:700; font-size:13px; border:none; cursor:pointer;">🔄 Recargar app</button>
-          <button id="v20-hard-reload-btn" style="background:white; border:1px solid #e5e7eb; border-radius:12px; padding:12px; font-weight:700; font-size:13px; cursor:pointer;">🧹 Limpiar caché</button>
-        </div>
-        <div style="font-size:11px; color:#6b7280; margin-top:8px;">Recargar: OCT 2026. Limpiar: borra session y recarga con ?v=V20</div>
-      `;
-      ajustesPanel.appendChild(section);
-      console.log('✓ V20 Recarga inyectada una sola vez en Ajustes');
-
-      setTimeout(()=>{
-        let b1=document.getElementById('v20-reload-btn');
-        let b2=document.getElementById('v20-hard-reload-btn');
-        if(b1) b1.onclick=()=>{ let u=new URL(location.href); u.searchParams.set('v','V20'); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
-        if(b2) b2.onclick=()=>{ sessionStorage.clear(); let u=new URL(location.href); u.searchParams.set('v','V20'); u.searchParams.set('hard','1'); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
-      }, 200);
-    }catch(e){ console.error('inject v20 err',e); }
-  }
-
-  // Ejecutar una vez y luego cada 2s pero con protección anti-duplicado
-  function run(){
-    simplifyHeaderVersion();
-    dedupAndClean();
-    injectReloadInAjustes();
-  }
-  setTimeout(run, 800);
-  setInterval(run, 2500);
+  console.log('V21 observer activo, sin intervalos que rompan React');
 })();
 </script>
 
