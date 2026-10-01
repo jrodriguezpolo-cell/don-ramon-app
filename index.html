@@ -1073,173 +1073,274 @@ console.log('Rentabilidad V12 LIMPIA cargada - 3 botones');
 
 
 
-<!-- V22 FIX PERSISTENCIA: RELOAD SOLO DENTRO DE AJUSTES -->
+
+
+
+<!-- V23 MIGRACION FIREBASE -> LOCAL + BACKUP ICLOUD -->
 <script>
 (function(){
-  const VERSION='V22';
-  let injectedAjustes=false;
+  const VERSION='V23';
+  let injected=false;
 
   function cleanAll(){
     try{
-      // Borrar todas las cards de recarga que estén FUERA de Ajustes (en Inicio/dashboard)
       document.querySelectorAll('div').forEach(div=>{
         if(!div.innerHTML) return;
         if(!div.innerHTML.includes('Recarga y caché')) return;
-        // Si este div NO está dentro de un modal que contenga "Ajustes Don Ramón", borrarlo
-        let isInsideAjustes = false;
-        let parent = div.parentElement;
-        let depth=0;
-        while(parent && depth<10){
-          if(parent.textContent && parent.textContent.includes('Ajustes Don Ramón')){
-            isInsideAjustes=true; break;
-          }
-          parent=parent.parentElement;
-          depth++;
-        }
-        // También comprobar si el propio div contiene "Ajustes Don Ramón" + "Recarga" (es el modal completo, no borrar)
-        // Solo borrar si es una card suelta en Inicio
+        let isInsideAjustes=false; let p=div.parentElement; let d=0;
+        while(p && d<10){ if(p.textContent && p.textContent.includes('Ajustes Don Ramón')){ isInsideAjustes=true; break; } p=p.parentElement; d++; }
         if(!isInsideAjustes){
-          // Si está en Inicio (contiene "Situación global" cerca), borrar
-          let bodyText = document.body.textContent||'';
-          let cardText = div.textContent||'';
-          // Si la card está en dashboard (tiene OCT 2026 cerca pero no Ajustes Don Ramón)
-          if(cardText.includes('Recarga y caché') && !div.closest('[data-ajustes-card]')){
-            // Verificar si su contenedor NO es el de Ajustes
-            let ajustesContainer = document.querySelector('[data-ajustes-container]');
-            if(!ajustesContainer || !ajustesContainer.contains(div)){
-              // Es una card huérfana en Inicio, borrar
-              if(div.id && (div.id.includes('v21-reload') || div.id.includes('v20-reload') || div.id.includes('v19-reload'))){
-                div.remove();
-              } else if(div.innerHTML.includes('Recargar app') && div.innerHTML.includes('Limpiar') && div.children.length<=5){
-                // Card pequeña flotante en Inicio
-                if(!div.textContent.includes('Total habitaciones')){
-                  div.remove();
-                }
-              }
-            }
+          if(div.id && div.id.includes('reload-card')) div.remove();
+          else if(div.innerHTML.includes('Recargar app') && div.innerHTML.includes('Limpiar') && div.children.length<=5){
+            if(!div.textContent.includes('Total habitaciones')) div.remove();
           }
         }
       });
-      // Borrar por IDs antiguos
-      ['v19-reload-btn','v20-reload-btn','v21-reload-btn','v19-reload-card','v20-reload-card','v21-reload-card'].forEach(id=>{
-        let els=document.querySelectorAll('#'+id);
-        els.forEach((el,i)=>{
-          if(i>0) el.remove(); // dejar solo uno si es el de Ajustes
-          else {
-            // Si este único está fuera de Ajustes, borrarlo también
-            let isInAjustes = false;
-            let p=el.parentElement; let d=0;
-            while(p && d<8){ if(p.textContent && p.textContent.includes('Ajustes Don Ramón')){ isInAjustes=true; break; } p=p.parentElement; d++; }
-            if(!isInAjustes){
-              let card=el.closest('div');
-              if(card && card.innerHTML.includes('Recarga y caché')) card.remove();
-            }
-          }
-        });
-      });
-    }catch(e){ console.error('clean err',e); }
+    }catch(e){}
   }
 
-  function injectInAjustes(){
+  function injectMigration(){
     try{
-      // Solo si estamos en la pantalla Ajustes
       let ajustesTitle=null;
       document.querySelectorAll('div').forEach(d=>{
-        if(d.textContent && d.textContent.trim()==='Ajustes Don Ramón'){
-          ajustesTitle=d;
-        }
+        if(d.textContent && d.textContent.trim()==='Ajustes Don Ramón') ajustesTitle=d;
       });
-      if(!ajustesTitle) { return false; } // No estamos en Ajustes, no inyectar
-
-      // Buscar contenedor blanco de Ajustes Don Ramón
-      let ajustesCard = ajustesTitle.closest('div');
-      // Subir hasta encontrar el card que contiene "Total habitaciones" y "Resetear datos"
+      if(!ajustesTitle) return false;
+      let ajustesCard=ajustesTitle.closest('div');
       let depth=0;
       while(ajustesCard && depth<6){
-        if(ajustesCard.textContent && ajustesCard.textContent.includes('Total habitaciones') && ajustesCard.textContent.includes('Resetear datos')){
-          break;
-        }
-        ajustesCard=ajustesCard.parentElement;
-        depth++;
+        if(ajustesCard.textContent && ajustesCard.textContent.includes('Total habitaciones') && ajustesCard.textContent.includes('Resetear datos')) break;
+        ajustesCard=ajustesCard.parentElement; depth++;
       }
       if(!ajustesCard) return false;
+      if(ajustesCard.querySelector('#v23-migration-card')) return true;
 
-      // Marcar contenedor para limpieza
-      ajustesCard.setAttribute('data-ajustes-container','1');
-
-      // Si ya existe card de recarga dentro de este contenedor, no duplicar
-      if(ajustesCard.querySelector('#v22-reload-card')) return true;
-
-      // Buscar botón Resetear datos dentro de este card
-      let resetBtn=null;
-      ajustesCard.querySelectorAll('button, div').forEach(el=>{
-        if(el.textContent && el.textContent.trim()==='Resetear datos'){
-          resetBtn=el;
-        }
-      });
-      if(!resetBtn) return false;
-
-      // Crear card V22 dentro de ajustesCard, después del reset
-      let card=document.createElement('div');
-      card.id='v22-reload-card';
-      card.setAttribute('data-ajustes-card','1');
-      card.style.cssText='margin-top:16px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:16px; padding:16px;';
-      card.innerHTML=`
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div style="font-weight:800; font-size:14px; color:#0f172a;">Recarga y caché</div>
-          <div style="font-size:10px; font-weight:800; background:#ede9fe; color:#5b21b6; padding:4px 8px; border-radius:9999px;">V22</div>
-        </div>
-        <div style="font-size:12px; color:#6b7280; margin-top:4px;">Si se queda en septiembre, fuerza recarga a mes actual (OCT 2026)</div>
-        <div style="display:flex; gap:8px; margin-top:12px;">
-          <button id="v22-reload-btn" style="flex:1; background:#0f172a; color:white; border-radius:12px; padding:12px; font-weight:700; font-size:13px; border:none;">🔄 Recargar app</button>
-          <button id="v22-hard-btn" style="flex:1; background:white; border:1px solid #e5e7eb; border-radius:12px; padding:12px; font-weight:700; font-size:13px;">🧹 Limpiar</button>
-        </div>
-      `;
-      // Insertar después del contenedor del botón Resetear
-      let resetContainer = resetBtn.parentElement;
-      if(resetContainer && resetContainer.parentElement===ajustesCard){
-        resetContainer.insertAdjacentElement('afterend', card);
-      } else {
-        ajustesCard.appendChild(card);
+      // Card V22 recarga (si no existe)
+      if(!ajustesCard.querySelector('#v22-reload-card')){
+        let cardRecarga=document.createElement('div');
+        cardRecarga.id='v22-reload-card';
+        cardRecarga.style.cssText='margin-top:16px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:16px; padding:16px;';
+        cardRecarga.innerHTML=`
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-weight:800; font-size:14px;">Recarga y caché</div>
+            <div style="font-size:10px; font-weight:800; background:#ede9fe; color:#5b21b6; padding:4px 8px; border-radius:9999px;">V23</div>
+          </div>
+          <div style="font-size:12px; color:#6b7280; margin-top:4px;">Si se queda en septiembre, fuerza recarga a OCT 2026</div>
+          <div style="display:flex; gap:8px; margin-top:12px;">
+            <button id="v22-reload-btn" style="flex:1; background:#0f172a; color:white; border-radius:12px; padding:12px; font-weight:700; font-size:13px; border:none;">🔄 Recargar</button>
+            <button id="v22-hard-btn" style="flex:1; background:white; border:1px solid #e5e7eb; border-radius:12px; padding:12px; font-weight:700;">🧹 Limpiar</button>
+          </div>
+        `;
+        ajustesCard.appendChild(cardRecarga);
+        setTimeout(()=>{
+          let b1=document.getElementById('v22-reload-btn');
+          let b2=document.getElementById('v22-hard-btn');
+          if(b1) b1.onclick=()=>{ let u=new URL(location.href); u.searchParams.set('v','V23'); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
+          if(b2) b2.onclick=()=>{ try{sessionStorage.clear();}catch(e){}; let u=new URL(location.href); u.searchParams.set('v','V23'); u.searchParams.set('hard','1'); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
+        },150);
       }
 
-      setTimeout(()=>{
-        let b1=document.getElementById('v22-reload-btn');
-        let b2=document.getElementById('v22-hard-btn');
-        if(b1) b1.onclick=()=>{ let u=new URL(location.href); u.searchParams.set('v','V22'); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
-        if(b2) b2.onclick=()=>{ try{sessionStorage.clear();}catch(e){}; let u=new URL(location.href); u.searchParams.set('v','V22'); u.searchParams.set('hard','1'); u.searchParams.set('t',Date.now()); location.href=u.toString(); };
-      }, 150);
+      // Card V23 Migración Firebase -> Local
+      let migrationCard=document.createElement('div');
+      migrationCard.id='v23-migration-card';
+      migrationCard.style.cssText='margin-top:16px; background:#fffbeb; border:1px solid #fde68a; border-radius:16px; padding:16px;';
+      migrationCard.innerHTML=`
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-weight:800; font-size:14px; color:#92400e;">📦 Migración Firebase → Local</div>
+          <div style="font-size:10px; font-weight:800; background:#fef3c7; color:#92400e; padding:4px 8px; border-radius:9999px;">V23 NUEVO</div>
+        </div>
+        <div style="font-size:12px; color:#78350f; margin-top:6px; line-height:1.4;">
+          Deja de pagar Firebase. Exporta 1 vez y guarda todo en localStorage + backup en iCloud.<br/>
+          <b>Pasos:</b> 1) Exporta JSON desde Firebase Console 2) Impórtalo aquí 3) Exporta backup local a iCloud 4) Borra proyecto Firebase.
+        </div>
+        <div style="background:white; border:1px solid #fde68a; border-radius:12px; padding:12px; margin-top:12px;">
+          <div style="font-weight:700; font-size:13px; margin-bottom:8px;">1️⃣ Exportar Firebase (haz esto en Firebase Console)</div>
+          <div style="font-size:11px; color:#6b7280; line-height:1.4;">
+            • Firestore: Abre Firestore → Cada colección (habitaciones, gastos, inquilinas, cobros) → 3 puntos → Export o usa este script en la consola del navegador:<br/>
+            <code style="background:#f3f4f6; padding:4px 6px; border-radius:6px; font-size:10px; display:block; margin:6px 0; word-break:break-all;">copy(JSON.stringify(localStorage)) // no, usa el script que te doy abajo</code>
+            • O usa Firebase CLI: <code>firebase firestore:export ./backup</code>
+          </div>
+          <button id="v23-show-script" style="margin-top:8px; background:#f59e0b; color:white; border:none; border-radius:8px; padding:8px 12px; font-weight:700; font-size:12px;">📋 Ver script para exportar todo</button>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;">
+          <label style="background:#0f172a; color:white; border-radius:12px; padding:12px; font-weight:700; font-size:12px; text-align:center; cursor:pointer;">
+            📥 Importar Firebase JSON
+            <input id="v23-import-firebase" type="file" accept=".json" style="display:none;">
+          </label>
+          <button id="v23-export-local" style="background:white; border:1px solid #e5e7eb; border-radius:12px; padding:12px; font-weight:700; font-size:12px;">💾 Backup local → iCloud</button>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button id="v23-ver-datos" style="flex:1; background:#f3f4f6; border:none; border-radius:12px; padding:10px; font-weight:700; font-size:12px;">👁️ Ver qué hay guardado</button>
+          <button id="v23-borrar-firebase" style="flex:1; background:#fee2e2; border:1px solid #fecaca; border-radius:12px; padding:10px; font-weight:700; font-size:12px; color:#991b1b;">🗑️ Cómo borrar Firebase</button>
+        </div>
+        <div id="v23-status" style="font-size:11px; color:#6b7280; margin-top:10px; background:white; border-radius:8px; padding:8px; display:none;"></div>
+      `;
+      ajustesCard.appendChild(migrationCard);
 
-      console.log('✓ V22 inyectado solo dentro de Ajustes');
+      setTimeout(()=>{
+        let input=document.getElementById('v23-import-firebase');
+        let btnExport=document.getElementById('v23-export-local');
+        let btnVer=document.getElementById('v23-ver-datos');
+        let btnBorrar=document.getElementById('v23-borrar-firebase');
+        let btnScript=document.getElementById('v23-show-script');
+        let status=document.getElementById('v23-status');
+
+        function showStatus(msg, ok=true){
+          status.style.display='block';
+          status.style.background=ok?'#ecfdf5':'#fef2f2';
+          status.style.border=ok?'1px solid #a7f3d0':'1px solid #fecaca';
+          status.style.color=ok?'#065f46':'#991b1b';
+          status.textContent=msg;
+        }
+
+        if(btnScript){
+          btnScript.onclick=()=>{
+            let script=`// Pega esto en la CONSOLA de tu Firebase Console (Firestore) para exportar TODO en 1 JSON
+(async()=>{
+  const db=firebase.firestore ? firebase.firestore() : null;
+  if(!db){ alert('Abre Firestore en Firebase Console y pega esto en la consola del navegador (F12)'); return; }
+  const cols=['habitaciones','inquilinas','inquilinos','gastos','cobros','contratos','fianzas','habitaciones','gastosDonRamon'];
+  let all={};
+  for(let c of cols){
+    try{
+      let snap=await db.collection(c).get();
+      all[c]=snap.docs.map(d=>({id:d.id, ...d.data()}));
+      console.log('Exportado',c, all[c].length);
+    }catch(e){ console.log('No existe o sin permiso',c); }
+  }
+  let blob=new Blob([JSON.stringify(all,null,2)],{type:'application/json'});
+  let a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='don-ramon-firebase-export-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+  console.log('✅ Exportado todo', all);
+})();
+`;
+            prompt('Copia este script y pégalo en la consola de Firebase (F12):', script);
+            showStatus('Script copiado al portapapeles (si tu navegador lo permite). Pégalo en la consola de Firebase para descargar el JSON.', true);
+          };
+        }
+
+        if(input){
+          input.onchange=(e)=>{
+            let file=e.target.files[0];
+            if(!file) return;
+            let reader=new FileReader();
+            reader.onload=(ev)=>{
+              try{
+                let data=JSON.parse(ev.target.result);
+                // Detectar si es export de Firestore o es objeto con colecciones
+                let count=0;
+                // Guardar todo en localStorage para debug
+                localStorage.setItem('donRamonFirebaseRaw', JSON.stringify(data).slice(0,500000)); // recortado por si es muy grande
+                // Intentar mapear colecciones comunes
+                let mapeo=[];
+                // Si data es {habitaciones:[], gastos:[], etc}
+                for(let key in data){
+                  if(Array.isArray(data[key])){
+                    mapeo.push(key+': '+data[key].length+' registros');
+                    count+=data[key].length;
+                    // Mapeo específico
+                    if(key.toLowerCase().includes('habitacion')){
+                      localStorage.setItem('donRamonHabitacionesFirebase', JSON.stringify(data[key]));
+                    }
+                    if(key.toLowerCase().includes('gasto')){
+                      // Mezclar con gastos existentes
+                      try{
+                        let actuales=JSON.parse(localStorage.getItem('donRamonGastosReal')||'{}');
+                        // Si el export es array, convertir a formato mes->array
+                        if(Array.isArray(data[key])){
+                          data[key].forEach(g=>{
+                            let mes=(g.fecha||g.mes||'2026-10').slice(0,7);
+                            if(!actuales[mes]) actuales[mes]=[];
+                            actuales[mes].push(g);
+                          });
+                          localStorage.setItem('donRamonGastosReal', JSON.stringify(actuales));
+                        }
+                      }catch(err){}
+                    }
+                    if(key.toLowerCase().includes('inquilina') || key.toLowerCase().includes('inquilino') || key.toLowerCase().includes('contrato')){
+                      localStorage.setItem('donRamonInquilinasFirebase', JSON.stringify(data[key]));
+                    }
+                  }
+                }
+                showStatus('✅ Importado Firebase: '+mapeo.join(' | ')+' | Total '+count+' registros. Ahora están en localStorage. Pulsa "Ver qué hay guardado" para revisar. Luego haz "Backup local → iCloud".', true);
+              }catch(err){
+                showStatus('❌ Error leyendo JSON: '+err.message, false);
+              }
+            };
+            reader.readAsText(file);
+          };
+        }
+
+        if(btnExport){
+          btnExport.onclick=()=>{
+            try{
+              let backup={
+                fecha:new Date().toISOString(),
+                version:'V23',
+                donRamonV5: JSON.parse(localStorage.getItem('donRamonV5')||'null'),
+                donRamonGastosReal: JSON.parse(localStorage.getItem('donRamonGastosReal')||'null'),
+                donRamonGastosV12: JSON.parse(localStorage.getItem('donRamonGastosV12')||'null'),
+                donRamonCobros: JSON.parse(localStorage.getItem('donRamonCobros')||'null'),
+                donRamonFianzas: JSON.parse(localStorage.getItem('donRamonFianzas')||'null'),
+                firebaseRaw: JSON.parse(localStorage.getItem('donRamonFirebaseRaw')||'null'),
+                habitacionesFirebase: JSON.parse(localStorage.getItem('donRamonHabitacionesFirebase')||'null'),
+                inquilinasFirebase: JSON.parse(localStorage.getItem('donRamonInquilinasFirebase')||'null'),
+              };
+              let blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+              let a=document.createElement('a');
+              a.href=URL.createObjectURL(blob);
+              a.download='don-ramon-backup-local-'+new Date().toISOString().slice(0,10)+'.json';
+              a.click();
+              showStatus('✅ Backup local descargado. Guárdalo en iCloud Drive → carpeta Don Ramón. Con este archivo puedes restaurar todo sin Firebase.', true);
+            }catch(e){
+              showStatus('❌ Error backup: '+e.message, false);
+            }
+          };
+        }
+
+        if(btnVer){
+          btnVer.onclick=()=>{
+            let keys=Object.keys(localStorage).filter(k=>k.toLowerCase().includes('ramon')||k.toLowerCase().includes('don'));
+            let info=keys.map(k=>{
+              try{ let v=JSON.parse(localStorage.getItem(k)); let len=Array.isArray(v)?v.length: (typeof v==='object'? Object.keys(v||{}).length : String(v).length); return k+': '+len+' items'; }catch(e){ return k+': '+(localStorage.getItem(k)||'').length+' chars'; }
+            }).join('\n');
+            showStatus('Datos en localStorage:\n'+info+'\n\nAbre consola F12 para ver detalle: localStorage', true);
+            console.log('=== DON RAMON LOCALSTORAGE ==='); keys.forEach(k=>console.log(k, localStorage.getItem(k)?.slice(0,500)));
+          };
+        }
+
+        if(btnBorrar){
+          btnBorrar.onclick=()=>{
+            showStatus('Para borrar Firebase sin riesgo: 1) Haz primero "Backup local → iCloud" y guarda el JSON en iCloud. 2) En Firebase Console → Configuración del proyecto → Abajo del todo → Eliminar proyecto. 3) Listo, ya no pagas ni te llegan avisos. La app seguirá funcionando 100% local.', true);
+          };
+        }
+
+      }, 200);
+
       return true;
-    }catch(e){ console.error('inject ajustes err',e); return false; }
+    }catch(e){ console.error('migration err',e); return false; }
   }
 
-  // Observer solo para Ajustes
   const observer=new MutationObserver(()=>{
     cleanAll();
-    injectInAjustes();
+    injectMigration();
   });
   observer.observe(document.body, {childList:true, subtree:true});
+  setTimeout(()=>{ cleanAll(); injectMigration(); }, 600);
+  setTimeout(()=>{ cleanAll(); injectMigration(); }, 1500);
 
-  // Limpieza inicial inmediata
-  setTimeout(()=>{ cleanAll(); injectInAjustes(); }, 500);
-  setTimeout(()=>{ cleanAll(); injectInAjustes(); }, 1500);
-  setTimeout(()=>{ cleanAll(); }, 3000);
-
-  // Header simplificado
   setTimeout(()=>{
     document.querySelectorAll('*').forEach(el=>{
       if(el.childNodes?.length===1 && el.childNodes[0].nodeType===3){
         let txt=(el.textContent||'').trim();
         if(txt.includes('Todo interrelacionado') || (txt.includes('estética') && txt.includes('lógica'))){
-          el.textContent='V22 · oct 26'; el.style.fontSize='11px'; el.style.color='#6b7280';
+          el.textContent='V23 · Firebase → Local'; el.style.fontSize='11px'; el.style.color='#6b7280';
         }
       }
     });
-  }, 1000);
+  }, 1200);
 
-  console.log('V22 fix persistencia activo');
+  console.log('V23 migración activa');
 })();
 </script>
 
